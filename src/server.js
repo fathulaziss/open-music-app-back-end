@@ -3,6 +3,8 @@ const AlbumsService = require('./services/inMemory/AlbumsService');
 const SongsService = require('./services/inMemory/SongsService');
 const albums = require('./api/albums');
 const songs = require('./api/songs');
+const AlbumValidator = require('./validator/albums');
+const ClientError = require('./exceptions/ClientError');
 
 const init = async () => {
   const albumsService = new AlbumsService();
@@ -20,12 +22,32 @@ const init = async () => {
 
   await server.register({
     plugin: albums,
-    options: { service: albumsService },
+    options: {
+      service: albumsService,
+      validator: AlbumValidator,
+    },
   });
 
   await server.register({
     plugin: songs,
     options: { service: songsService },
+  });
+
+  await server.ext('onPreResponse', (request, h) => {
+    // mendapatkan konteks response dari request
+    const { response } = request;
+
+    // penanganan client error secara internal.
+    if (response instanceof ClientError) {
+      const newResponse = h.response({
+        status: 'fail',
+        message: response.message,
+      });
+      newResponse.code(response.statusCode);
+      return newResponse;
+    }
+
+    return h.continue;
   });
 
   await server.start();
