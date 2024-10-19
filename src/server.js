@@ -1,9 +1,13 @@
+// mengimpor dotenv dan menjalankan konfigurasinya
+require('dotenv').config();
+
 const Hapi = require('@hapi/hapi');
-const AlbumsService = require('./services/inMemory/AlbumsService');
-const SongsService = require('./services/inMemory/SongsService');
+const AlbumsService = require('./services/postgres/AlbumsService');
+const SongsService = require('./services/postgres/SongsService');
 const albums = require('./api/albums');
 const songs = require('./api/songs');
 const AlbumValidator = require('./validator/albums');
+const SongValidator = require('./validator/songs');
 const ClientError = require('./exceptions/ClientError');
 
 const init = async () => {
@@ -11,8 +15,8 @@ const init = async () => {
   const songsService = new SongsService();
 
   const server = Hapi.server({
-    port: 3000,
-    host: process.env.NODE_ENV !== 'production' ? 'localhost' : '0.0.0.0',
+    port: process.env.PORT,
+    host: process.env.HOST,
     routes: {
       cors: {
         origin: ['*'],
@@ -30,10 +34,13 @@ const init = async () => {
 
   await server.register({
     plugin: songs,
-    options: { service: songsService },
+    options: {
+      service: songsService,
+      validator: SongValidator,
+    },
   });
 
-  await server.ext('onPreResponse', (request, h) => {
+  server.ext('onPreResponse', (request, h) => {
     // mendapatkan konteks response dari request
     const { response } = request;
 
@@ -46,6 +53,7 @@ const init = async () => {
       newResponse.code(response.statusCode);
       return newResponse;
     }
+    console.error(response.message);
 
     return h.continue;
   });
